@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, CheckCircle, XCircle, DollarSign } from 'lucide-react';
+import { Users, CheckCircle, XCircle, DollarSign, Flag, UserX } from 'lucide-react';
 import { DashboardStats } from '../types';
 
 interface DashboardProps {
@@ -8,7 +8,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, darkMode }) => {
-  const StatCard = ({ icon: Icon, title, value, color }: { icon: any, title: string, value: string | number, color: string }) => (
+  const StatCard = ({ icon: Icon, title, value, color }: { icon: React.ElementType, title: string, value: string | number, color: string }) => (
     <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
       <div className="flex items-center gap-2">
         <div className={`p-1.5 rounded-lg ${color}`}>
@@ -44,6 +44,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, darkMode }) => {
           title="Ausencias" 
           value={stats.totalAbsences} 
           color="bg-red-500"
+        />
+        <StatCard 
+          icon={Flag} 
+          title="Feriados" 
+          value={stats.totalHolidays} 
+          color="bg-purple-500"
+        />
+        <StatCard 
+          icon={UserX} 
+          title="Ausencias mías" 
+          value={stats.totalMyAbsences} 
+          color="bg-orange-500"
         />
         <StatCard 
           icon={DollarSign} 

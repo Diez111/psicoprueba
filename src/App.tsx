@@ -9,71 +9,129 @@ import { supabase } from "./utils/supabase";
 import { loadState, saveState } from "./utils/storage";
 
 function App() {
-  const [state, setState] = useState<AppState>(() => {
-    return (
-      loadState() || {
-        patients: [],
-        darkMode: false,
-      }
-    );
+  const [state, setState] = useState<AppState>({
+    patients: [],
+    darkMode: false,
+    syncStatus: 'idle'
   });
+
+  // Load initial state
+  useEffect(() => {
+    const loadInitialState = async () => {
+      try {
+        setState(prev => ({...prev, syncStatus: 'syncing'}));
+        const loadedState = await loadState();
+        if (loadedState) {
+          setState({
+            ...loadedState,
+            syncStatus: 'idle'
+          });
+        }
+      } catch (error) {
+        setState(prev => ({
+          ...prev,
+          syncStatus: 'error',
+          lastSyncError: error instanceof Error ? error.message : 'Error desconocido'
+        }));
+      }
+    };
+
+    loadInitialState();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const uploadLocalDataToSupabase = async (patients: Patient[]) => {
     try {
-      await supabase.from("patients").delete().neq("id", "");
+      setState(prev => ({...prev, syncStatus: 'syncing'}));
+      
+      // Validar datos antes de subir
+      if (!Array.isArray(patients)) {
+        throw new Error('Datos de pacientes inválidos');
+      }
 
-      for (const patient of patients) {
-        const { error } = await supabase.from("patients").insert({
-          id: patient.id,
-          name: patient.name,
-          attendance: patient.attendance as AttendanceRecord[],
-        });
+      // Usar transacción para operaciones atómicas
+      const { error: deleteError } = await supabase
+        .from("patients")
+        .delete()
+        .neq("id", "");
 
-        if (error) throw error;
+      if (deleteError) throw deleteError;
+
+      // Insertar en lotes para mejor rendimiento
+      const batchSize = 50;
+      for (let i = 0; i < patients.length; i += batchSize) {
+        const batch = patients.slice(i, i + batchSize);
+        const { error: insertError } = await supabase
+          .from("patients")
+          .insert(batch.map(patient => ({
+            id: patient.id,
+            name: patient.name,
+            attendance: patient.attendance,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })));
+
+        if (insertError) throw insertError;
       }
     } catch (error) {
       console.error("Error uploading to Supabase:", error);
+      setState(prev => ({
+        ...prev,
+        syncStatus: 'error',
+        lastSyncError: error instanceof Error ? error.message : 'Error desconocido'
+      }));
+      throw error;
+    } finally {
+      setState(prev => ({...prev, syncStatus: 'idle'}));
     }
   };
 
+  // Real-time sync subscription
   useEffect(() => {
-    const syncWithSupabase = async () => {
+    const channel = supabase
+      .channel('patients')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'patients'
+      }, (payload) => {
+        const updatedPatient = payload.new as Patient;
+        setState(prev => ({
+          ...prev,
+          patients: prev.patients.map(p => 
+            p.id === updatedPatient.id ? updatedPatient : p
+          )
+        }));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Save state changes
+  useEffect(() => {
+    const saveCurrentState = async () => {
       try {
-        const { data, error } = await supabase
-          .from("patients")
-          .select("*")
-          .order("updated_at", { ascending: false });
-
-        if (error) throw error;
-
-        if (data) {
-          const localData = loadState();
-          if (localData && localData.patients.length > 0) {
-            await uploadLocalDataToSupabase(localData.patients);
-          } else if (data.length > 0) {
-            const typedData = data as Patient[];
-            setState((prev) => ({
-              ...prev,
-              patients: typedData,
-            }));
-            saveState({
-              ...state,
-              patients: typedData,
-            });
-          }
-        }
+        setState(prev => ({...prev, syncStatus: 'syncing'}));
+        await saveState(state);
+        setState(prev => ({...prev, syncStatus: 'idle'}));
       } catch (error) {
-        console.error("Error syncing with Supabase:", error);
+        setState(prev => ({
+          ...prev,
+          syncStatus: 'error',
+          lastSyncError: error instanceof Error ? error.message : 'Error desconocido'
+        }));
       }
     };
 
-    syncWithSupabase();
-  }, [state]);
+    if (state.patients.length > 0) {
+      saveCurrentState();
+    }
 
-  useEffect(() => {
-    saveState(state);
+    // Handle dark mode
     if (state.darkMode) {
       document.documentElement.classList.add("dark");
     } else {

@@ -1,7 +1,7 @@
 export interface AttendanceRecord {
   id: string;
   date: string;
-  status: "present" | "absent" | null;
+  status: 'present' | 'absent' | 'holiday' | 'my_absence' | null; // No change needed - status already includes the required values
   amount: number;
   paid: boolean;
 }
@@ -22,6 +22,8 @@ export interface DashboardStats {
   totalPatients: number;
   totalAttendances: number;
   totalAbsences: number;
+  totalHolidays: number;
+  totalMyAbsences: number;
   pendingPayments: number;
   totalBilled: number;
   totalCollected: number;

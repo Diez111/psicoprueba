@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { AppState } from "../types";
+import { useState, useEffect, useCallback } from "react";
 import { MessageSquare, X, Loader2 } from "lucide-react";
 
 interface ChatMessage {
@@ -6,21 +7,6 @@ interface ChatMessage {
   sender: "user" | "ai";
   content: string;
   timestamp: number;
-}
-
-interface AppState {
-  patients: {
-    id: string;
-    name: string;
-    attendance: {
-      id: string;
-      date: string;
-      status: "present" | "absent" | null;
-      amount: number;
-      paid: boolean;
-    }[];
-  }[];
-  darkMode: boolean;
 }
 
 export function ChatAssistant({ state }: { state: AppState }) {
@@ -46,10 +32,12 @@ export function ChatAssistant({ state }: { state: AppState }) {
         0,
       ),
       attendanceStats: state.patients.reduce(
-        (acc: { present?: number; absent?: number }, p) => {
+        (acc: { present?: number; absent?: number; holiday?: number; my_absence?: number }, p) => {
           p.attendance.forEach((a) => {
             if (a.status === "present") acc.present = (acc.present || 0) + 1;
             if (a.status === "absent") acc.absent = (acc.absent || 0) + 1;
+            if (a.status === "holiday") acc.holiday = (acc.holiday || 0) + 1;
+            if (a.status === "my_absence") acc.my_absence = (acc.my_absence || 0) + 1;
           });
           return acc;
         },
@@ -71,6 +59,8 @@ export function ChatAssistant({ state }: { state: AppState }) {
         attendance: {
           present: p.attendance.filter((a) => a.status === "present").length,
           absent: p.attendance.filter((a) => a.status === "absent").length,
+          holiday: p.attendance.filter((a) => a.status === "holiday").length,
+          my_absence: p.attendance.filter((a) => a.status === "my_absence").length,
         },
         payments: {
           total: p.attendance.reduce((acc: number, a) => acc + a.amount, 0),
@@ -172,7 +162,7 @@ export function ChatAssistant({ state }: { state: AppState }) {
   );
 
   return (
-    <div className={`fixed z-50 ${isMobile ? "inset-0" : "bottom-4 right-4"}`}>
+    <div className={`fixed z-40 ${isMobile ? "inset-0 pointer-events-none" : "bottom-4 right-4"}`}>
       {open ? (
         <div
           className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg flex flex-col ${

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Trash2, Plus, Check, X, DollarSign, Calendar } from 'lucide-react';
-import { Patient, AttendanceRecord } from '../types';
+import { Patient } from '../types';
 
 interface PatientRowProps {
   patient: Patient;
   onToggleAttendance: (patientId: string, attendanceId: string) => void;
+  // Ciclo de estados: present -> absent -> holiday -> my_absence -> null
   onAddAttendance: (patientId: string) => void;
   onDeletePatient: (patientId: string) => void;
   onTogglePaid: (patientId: string, attendanceId: string) => void;
@@ -37,14 +38,6 @@ export const PatientRow: React.FC<PatientRowProps> = ({
     if (!isNaN(date.getTime())) {
       onUpdateDate(patientId, attendanceId, date.toISOString());
     }
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
   };
 
   const formatDateForInput = (date: string) => {
@@ -132,6 +125,10 @@ export const PatientRow: React.FC<PatientRowProps> = ({
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
                             : record.status === 'absent'
                             ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                            : record.status === 'holiday'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'
+                            : record.status === 'my_absence'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400'
                             : darkMode
                             ? 'bg-gray-700 text-gray-300'
                             : 'bg-gray-100 text-gray-600'
@@ -139,7 +136,12 @@ export const PatientRow: React.FC<PatientRowProps> = ({
                       >
                         {record.status === 'present' && <Check size={14} />}
                         {record.status === 'absent' && <X size={14} />}
-                        {record.status === 'present' ? 'Presente' : record.status === 'absent' ? 'Ausente' : 'Sin marcar'}
+                        {record.status === 'holiday' && <Calendar size={14} />}
+                        {record.status === 'my_absence' && <X size={14} />}
+                        {record.status === 'present' ? 'Presente' : 
+                         record.status === 'absent' ? 'Ausente' :
+                         record.status === 'holiday' ? 'Feriado' :
+                         record.status === 'my_absence' ? 'Ausencia mía' : 'Sin marcar'}
                       </button>
                     </td>
                     <td className="px-4 py-2">

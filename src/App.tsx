@@ -84,6 +84,8 @@ function App() {
   const calculateStats = (): DashboardStats => {
     let totalAttendances = 0;
     let totalAbsences = 0;
+    let totalHolidays = 0;
+    let totalMyAbsences = 0;
     let totalBilled = 0;
     let totalCollected = 0;
     let pendingPayments = 0;
@@ -92,6 +94,8 @@ function App() {
       patient.attendance.forEach((record) => {
         if (record.status === "present") totalAttendances++;
         if (record.status === "absent") totalAbsences++;
+        if (record.status === "holiday") totalHolidays++;
+        if (record.status === "my_absence") totalMyAbsences++;
         if (record.amount) {
           totalBilled += record.amount;
           if (record.paid) {
@@ -113,6 +117,8 @@ function App() {
       totalPatients: state.patients.length,
       totalAttendances,
       totalAbsences,
+      totalHolidays,
+      totalMyAbsences,
       pendingPayments,
       totalBilled,
       totalCollected,
@@ -192,12 +198,10 @@ function App() {
             attendance: patient.attendance.map((record) => {
               if (record.id !== attendanceId) return record;
 
-              const nextStatus: "present" | "absent" | null =
-                record.status === null
-                  ? "present"
-                  : record.status === "present"
-                    ? "absent"
-                    : null;
+              const statusOrder = ['present', 'absent', 'holiday', 'my_absence', null];
+              const currentIndex = statusOrder.indexOf(record.status);
+              const nextIndex = (currentIndex + 1) % statusOrder.length;
+              const nextStatus = statusOrder[nextIndex];
 
               return { ...record, status: nextStatus } as AttendanceRecord;
             }),

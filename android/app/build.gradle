@@ -1,18 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.psicoprueba.app"
+    namespace "com.example.app"
     compileSdk rootProject.ext.compileSdkVersion
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-    
-    kotlinOptions {
-        jvmTarget = '17'
-    }
     defaultConfig {
-        applicationId "com.orgpsico.app"
+        applicationId "com.example.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -42,7 +42,7 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div
-        className={`absolute inset-0 bg-black/50 backdrop-blur-sm ${isOpen ? '' : 'pointer-events-none'}`}
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
 

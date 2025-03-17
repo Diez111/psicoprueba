@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Trash2, Plus, Check, X, DollarSign, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, Plus, DollarSign } from 'lucide-react';
 import { Patient } from '../types';
 
 interface PatientRowProps {
   patient: Patient;
-  onToggleAttendance: (patientId: string, attendanceId: string) => void;
-  // Ciclo de estados: present -> absent -> holiday -> my_absence -> null
+  onToggleAttendance: (patientId: string, attendanceId: string, status: "present" | "absent" | "holiday" | "my_absence" | null) => void;
   onAddAttendance: (patientId: string) => void;
   onDeletePatient: (patientId: string) => void;
   onTogglePaid: (patientId: string, attendanceId: string) => void;
@@ -119,29 +118,31 @@ export const PatientRow: React.FC<PatientRowProps> = ({
                     </td>
                     <td className="px-4 py-2">
                       <button
-                        onClick={() => onToggleAttendance(patient.id, record.id)}
+                        onClick={() => {
+                          const statusOrder: Array<"present" | "absent" | "holiday" | "my_absence" | null> = [null, 'present', 'absent', 'holiday', 'my_absence'];
+                          const currentIndex = statusOrder.indexOf(record.status);
+                          const nextIndex = (currentIndex + 1) % statusOrder.length;
+                          onToggleAttendance(patient.id, record.id, statusOrder[nextIndex]);
+                        }}
                         className={`px-2 py-1 rounded-lg text-sm font-medium flex items-center gap-1 ${
                           record.status === 'present'
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'
                             : record.status === 'absent'
                             ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
                             : record.status === 'holiday'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'
-                            : record.status === 'my_absence'
                             ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400'
+                            : record.status === 'my_absence'
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400'
                             : darkMode
                             ? 'bg-gray-700 text-gray-300'
                             : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {record.status === 'present' && <Check size={14} />}
-                        {record.status === 'absent' && <X size={14} />}
-                        {record.status === 'holiday' && <Calendar size={14} />}
-                        {record.status === 'my_absence' && <X size={14} />}
-                        {record.status === 'present' ? 'Presente' : 
-                         record.status === 'absent' ? 'Ausente' :
-                         record.status === 'holiday' ? 'Feriado' :
-                         record.status === 'my_absence' ? 'Ausencia mía' : 'Sin marcar'}
+                        {record.status === 'present' && 'Presente'}
+                        {record.status === 'absent' && 'Ausente'}
+                        {record.status === 'holiday' && 'Feriado'}
+                        {record.status === 'my_absence' && 'Ausencia mía'}
+                        {!record.status && 'Sin marcar'}
                       </button>
                     </td>
                     <td className="px-4 py-2">

@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.orgpsico.app',
-  appName: 'OrgPsico',
+  appId: 'com.example.app',
+  appName: 'PsicoJuli',
   webDir: 'dist'
 };
 

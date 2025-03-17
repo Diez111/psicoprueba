@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, CheckCircle, XCircle, DollarSign, Flag, UserX } from 'lucide-react';
+import { Users, CheckCircle, XCircle, DollarSign, Calendar, UserX } from 'lucide-react';
 import { DashboardStats } from '../types';
 
 interface DashboardProps {
@@ -46,22 +46,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, darkMode }) => {
           color="bg-red-500"
         />
         <StatCard 
-          icon={Flag} 
+          icon={DollarSign} 
+          title="Pagos Pendientes" 
+          value={stats.pendingPayments} 
+          color="bg-yellow-500"
+        />
+        <StatCard 
+          icon={Calendar} 
           title="Feriados" 
           value={stats.totalHolidays} 
           color="bg-purple-500"
         />
         <StatCard 
           icon={UserX} 
-          title="Ausencias mías" 
+          title="Ausencia mía" 
           value={stats.totalMyAbsences} 
           color="bg-orange-500"
-        />
-        <StatCard 
-          icon={DollarSign} 
-          title="Pagos Pendientes" 
-          value={stats.pendingPayments} 
-          color="bg-yellow-500"
         />
       </div>
 

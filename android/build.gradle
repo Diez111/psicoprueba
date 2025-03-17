@@ -7,9 +7,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.4.0'
+        classpath 'com.android.tools.build:gradle:8.7.2'
         classpath 'com.google.gms:google-services:4.4.2'
-        classpath 'com.capacitorjs:core:5.0.0'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -22,19 +21,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-    }
-    
-    tasks.withType(JavaCompile) {
-        options.release = 21
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-    
-    configurations.all {
-        resolutionStrategy {
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.20'
-            force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.20'
-        }
     }
 }
 

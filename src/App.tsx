@@ -5,133 +5,40 @@ import { PatientRow } from "./components/PatientRow";
 import { Dashboard } from "./components/Dashboard";
 import { AddPatientModal } from "./components/AddPatientModal";
 import { ChatAssistant } from "./components/ChatAssistant";
-import { supabase } from "./utils/supabase";
 import { loadState, saveState } from "./utils/storage";
 
 function App() {
-  const [state, setState] = useState<AppState>({
-    patients: [],
-    darkMode: false,
-    syncStatus: 'idle'
-  });
-
-  // Load initial state
-  useEffect(() => {
-    const loadInitialState = async () => {
-      try {
-        setState(prev => ({...prev, syncStatus: 'syncing'}));
-        const loadedState = await loadState();
-        if (loadedState) {
-          setState({
-            ...loadedState,
-            syncStatus: 'idle'
-          });
-        }
-      } catch (error) {
-        setState(prev => ({
-          ...prev,
-          syncStatus: 'error',
-          lastSyncError: error instanceof Error ? error.message : 'Error desconocido'
-        }));
-      }
+  const [state, setState] = useState<AppState>(() => {
+    const savedState = loadState();
+    if (savedState) {
+      return {
+        ...savedState,
+        patients: savedState.patients.map(patient => ({
+          ...patient,
+          attendance: patient.attendance.map(record => ({
+            ...record,
+              status: record.status
+          }))
+        }))
+      };
+    }
+    return {
+      patients: [],
+      darkMode: false,
     };
-
-    loadInitialState();
-  }, []);
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const uploadLocalDataToSupabase = async (patients: Patient[]) => {
-    try {
-      setState(prev => ({...prev, syncStatus: 'syncing'}));
-      
-      // Validar datos antes de subir
-      if (!Array.isArray(patients)) {
-        throw new Error('Datos de pacientes inválidos');
-      }
-
-      // Usar transacción para operaciones atómicas
-      const { error: deleteError } = await supabase
-        .from("patients")
-        .delete()
-        .neq("id", "");
-
-      if (deleteError) throw deleteError;
-
-      // Insertar en lotes para mejor rendimiento
-      const batchSize = 50;
-      for (let i = 0; i < patients.length; i += batchSize) {
-        const batch = patients.slice(i, i + batchSize);
-        const { error: insertError } = await supabase
-          .from("patients")
-          .insert(batch.map(patient => ({
-            id: patient.id,
-            name: patient.name,
-            attendance: patient.attendance,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })));
-
-        if (insertError) throw insertError;
-      }
-    } catch (error) {
-      console.error("Error uploading to Supabase:", error);
-      setState(prev => ({
-        ...prev,
-        syncStatus: 'error',
-        lastSyncError: error instanceof Error ? error.message : 'Error desconocido'
-      }));
-      throw error;
-    } finally {
-      setState(prev => ({...prev, syncStatus: 'idle'}));
-    }
-  };
-
-  // Real-time sync subscription
   useEffect(() => {
-    const channel = supabase
-      .channel('patients')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'patients'
-      }, (payload) => {
-        const updatedPatient = payload.new as Patient;
-        setState(prev => ({
-          ...prev,
-          patients: prev.patients.map(p => 
-            p.id === updatedPatient.id ? updatedPatient : p
-          )
-        }));
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const localData = loadState();
+    if (localData) {
+      setState(localData);
+    }
   }, []);
 
-  // Save state changes
   useEffect(() => {
-    const saveCurrentState = async () => {
-      try {
-        setState(prev => ({...prev, syncStatus: 'syncing'}));
-        await saveState(state);
-        setState(prev => ({...prev, syncStatus: 'idle'}));
-      } catch (error) {
-        setState(prev => ({
-          ...prev,
-          syncStatus: 'error',
-          lastSyncError: error instanceof Error ? error.message : 'Error desconocido'
-        }));
-      }
-    };
-
-    if (state.patients.length > 0) {
-      saveCurrentState();
-    }
-
-    // Handle dark mode
+    saveState(state);
     if (state.darkMode) {
       document.documentElement.classList.add("dark");
     } else {
@@ -165,7 +72,7 @@ function App() {
       });
     });
 
-    const totalRecords = totalAttendances + totalAbsences;
+    const totalRecords = totalAttendances + totalAbsences + totalHolidays + totalMyAbsences;
     const attendanceRate = totalRecords
       ? (totalAttendances / totalRecords) * 100
       : 0;
@@ -186,24 +93,7 @@ function App() {
     };
   };
 
-  const updatePatientInSupabase = async (patient: Patient) => {
-    try {
-      const { error } = await supabase
-        .from("patients")
-        .update({
-          name: patient.name,
-          attendance: patient.attendance as AttendanceRecord[],
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", patient.id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error updating patient in Supabase:", error);
-    }
-  };
-
-  const addPatient = async (name: string) => {
+  const addPatient = (name: string) => {
     const newPatient: Patient = {
       id: crypto.randomUUID(),
       name,
@@ -214,208 +104,138 @@ function App() {
       ...prev,
       patients: [...prev.patients, newPatient],
     }));
-
-    try {
-      const { error } = await supabase.from("patients").insert(newPatient);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error adding patient to Supabase:", error);
-    }
   };
 
-  const deletePatient = async (patientId: string) => {
+  const deletePatient = (patientId: string) => {
     if (!confirm("¿Está seguro de eliminar este paciente?")) return;
 
     setState((prev) => ({
       ...prev,
       patients: prev.patients.filter((p) => p.id !== patientId),
     }));
-
-    try {
-      const { error } = await supabase
-        .from("patients")
-        .delete()
-        .eq("id", patientId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error deleting patient from Supabase:", error);
-    }
   };
 
-  const toggleAttendance = async (patientId: string, attendanceId: string) => {
-    setState((prev: AppState) => {
-      const newState: AppState = {
-        ...prev,
-        patients: prev.patients.map((patient) => {
-          if (patient.id !== patientId) return patient;
+  const toggleAttendance = (patientId: string, attendanceId: string, status: "present" | "absent" | "holiday" | "my_absence" | null) => {
+    setState((prev: AppState) => ({
+      ...prev,
+      patients: prev.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
 
-          const updatedPatient: Patient = {
-            ...patient,
-            attendance: patient.attendance.map((record) => {
-              if (record.id !== attendanceId) return record;
+        return {
+          ...patient,
+          attendance: patient.attendance.map((record) => {
+            if (record.id !== attendanceId) return record;
 
-              const statusOrder = ['present', 'absent', 'holiday', 'my_absence', null];
-              const currentIndex = statusOrder.indexOf(record.status);
-              const nextIndex = (currentIndex + 1) % statusOrder.length;
-              const nextStatus = statusOrder[nextIndex];
-
-              return { ...record, status: nextStatus } as AttendanceRecord;
-            }),
-          };
-
-          updatePatientInSupabase(updatedPatient);
-          return updatedPatient;
-        }),
-      };
-      return newState;
-    });
+            return { ...record, status } as AttendanceRecord;
+          }),
+        };
+      }),
+    }));
   };
 
-  const addAttendance = async (patientId: string) => {
-    setState((prev) => {
-      const newState = {
-        ...prev,
-        patients: prev.patients.map((patient) => {
-          if (patient.id !== patientId) return patient;
+  const addAttendance = (patientId: string) => {
+    setState((prev) => ({
+      ...prev,
+      patients: prev.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
 
-          const updatedPatient = {
-            ...patient,
-            attendance: [
-              ...patient.attendance,
-              {
-                id: crypto.randomUUID(),
-                date: new Date().toISOString(),
-                status: null,
-                amount: 0,
-                paid: false,
-              },
-            ],
-          };
-
-          updatePatientInSupabase(updatedPatient);
-          return updatedPatient;
-        }),
-      };
-      return newState;
-    });
+        return {
+          ...patient,
+          attendance: [
+            ...patient.attendance,
+            {
+              id: crypto.randomUUID(),
+              date: new Date().toISOString(),
+              status: null,
+              amount: 0,
+              paid: false,
+            },
+          ],
+        };
+      }),
+    }));
   };
 
-  const deleteAttendance = async (patientId: string, attendanceId: string) => {
-    setState((prev) => {
-      const newState = {
-        ...prev,
-        patients: prev.patients.map((patient) => {
-          if (patient.id !== patientId) return patient;
+  const deleteAttendance = (patientId: string, attendanceId: string) => {
+    setState((prev) => ({
+      ...prev,
+      patients: prev.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
 
-          const updatedPatient = {
-            ...patient,
-            attendance: patient.attendance.filter(
-              (record) => record.id !== attendanceId,
-            ),
-          };
-
-          updatePatientInSupabase(updatedPatient);
-          return updatedPatient;
-        }),
-      };
-      return newState;
-    });
+        return {
+          ...patient,
+          attendance: patient.attendance.filter(
+            (record) => record.id !== attendanceId,
+          ),
+        };
+      }),
+    }));
   };
 
-  const togglePaid = async (patientId: string, attendanceId: string) => {
-    setState((prev) => {
-      const newState = {
-        ...prev,
-        patients: prev.patients.map((patient) => {
-          if (patient.id !== patientId) return patient;
+  const togglePaid = (patientId: string, attendanceId: string) => {
+    setState((prev) => ({
+      ...prev,
+      patients: prev.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
 
-          const updatedPatient = {
-            ...patient,
-            attendance: patient.attendance.map((record) => {
-              if (record.id !== attendanceId) return record;
-              return { ...record, paid: !record.paid };
-            }),
-          };
-
-          updatePatientInSupabase(updatedPatient);
-          return updatedPatient;
-        }),
-      };
-      return newState;
-    });
+        return {
+          ...patient,
+          attendance: patient.attendance.map((record) => {
+            if (record.id !== attendanceId) return record;
+            return { ...record, paid: !record.paid };
+          }),
+        };
+      }),
+    }));
   };
 
-  const updateAmount = async (
+  const updateAmount = (
     patientId: string,
     attendanceId: string,
     amount: number,
   ) => {
-    setState((prev) => {
-      const newState = {
-        ...prev,
-        patients: prev.patients.map((patient) => {
-          if (patient.id !== patientId) return patient;
+    setState((prev) => ({
+      ...prev,
+      patients: prev.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
 
-          const updatedPatient = {
-            ...patient,
-            attendance: patient.attendance.map((record) => {
-              if (record.id !== attendanceId) return record;
-              return { ...record, amount };
-            }),
-          };
-
-          updatePatientInSupabase(updatedPatient);
-          return updatedPatient;
-        }),
-      };
-      return newState;
-    });
+        return {
+          ...patient,
+          attendance: patient.attendance.map((record) => {
+            if (record.id !== attendanceId) return record;
+            return { ...record, amount };
+          }),
+        };
+      }),
+    }));
   };
 
-  const updateDate = async (
+  const updateDate = (
     patientId: string,
     attendanceId: string,
     date: string,
   ) => {
-    setState((prev) => {
-      const newState = {
-        ...prev,
-        patients: prev.patients.map((patient) => {
-          if (patient.id !== patientId) return patient;
+    setState((prev) => ({
+      ...prev,
+      patients: prev.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
 
-          const updatedPatient = {
-            ...patient,
-            attendance: patient.attendance.map((record) => {
-              if (record.id !== attendanceId) return record;
-              return { ...record, date };
-            }),
-          };
-
-          updatePatientInSupabase(updatedPatient);
-          return updatedPatient;
-        }),
-      };
-      return newState;
-    });
+        return {
+          ...patient,
+          attendance: patient.attendance.map((record) => {
+            if (record.id !== attendanceId) return record;
+            return { ...record, date };
+          }),
+        };
+      }),
+    }));
   };
 
-  const toggleDarkMode = async () => {
+  const toggleDarkMode = () => {
     setState((prev) => ({
       ...prev,
       darkMode: !prev.darkMode,
     }));
-
-    try {
-      const { error } = await supabase
-        .from("settings")
-        .upsert({ key: "darkMode", value: !state.darkMode });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Error saving dark mode:", error);
-    }
   };
 
   const exportData = () => {
@@ -430,19 +250,18 @@ function App() {
     linkElement.click();
   };
 
-  const importData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const patients = JSON.parse(e.target?.result as string);
         setState((prev) => ({
           ...prev,
           patients,
         }));
-        await uploadLocalDataToSupabase(patients);
       } catch {
         alert("Error al importar el archivo");
       }
